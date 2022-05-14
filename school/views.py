@@ -4,7 +4,10 @@ from rest_framework import status, generics
 from rest_framework.views import APIView
 from .models import Student, Teacher, User
 from .serializers import StudentSerializer, UserSerializer, TeacherSerializer
+from rest_framework import mixins
+from rest_framework import permissions
 
+from .permissions import IsOwnerOrReadOnly
 # Create your views here.
 
 
@@ -19,6 +22,7 @@ class UserDetail(generics.RetrieveAPIView):
 
 
 class StudentListView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get(self, request):
         students = Student.objects.all()
@@ -34,10 +38,11 @@ class StudentListView(APIView):
 
 
 class StudentDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
 
     def get_object(self, pk):
         try:
-            student = Student.objects.get(pk=pk)
+            return Student.objects.get(pk=pk)
         except:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
@@ -99,3 +104,48 @@ class TeacherDetailView(APIView):
         teacher = self.get_object(pk)
         teacher.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+# Using Mixins
+
+
+class StudentList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
+    queryset = Student.objects.all()
+    serializer_class = StudentSerializer
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        return self.create(request, *args, **kwargs)
+
+
+class StuentDetails(mixins.RetrieveModelMixin,
+                    mixins.UpdateModelMixin,
+                    mixins.DestroyModelMixin,
+                    generics.GenericAPIView):
+    queryset = Student.objects.all()
+    serializer_class = StudentSerializer
+
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)
+
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    def delete(self, request, *args, **kwargs):
+        return self.destroy(request, *args, **kwargs)
+
+
+# Using generics class-based views
+
+class StudentGenericList(generics.ListCreateAPIView):
+    queryset = Student.objects.all()
+    serializer_class = StudentSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+class StudentGenericDetails(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Student.objects.all()
+    serializer_class = StudentSerializer
